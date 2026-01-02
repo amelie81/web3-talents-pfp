@@ -11,54 +11,69 @@ export default function Page() {
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const [loading, setLoading] = useState(false);
 
-  // Load background once
+  /* -----------------------------
+     LOAD BACKGROUND ONCE
+  ----------------------------- */
   useEffect(() => {
     const img = new Image();
     img.src = "/background.png";
     img.onload = () => {
       setBgImage(img);
       const canvas = canvasRef.current!;
-      canvas.width = img.width;
+      canvas.width = img.width;   // echte Export-Auflösung
       canvas.height = img.height;
+      draw(img, null, scale, pos);
     };
   }, []);
 
-  // Redraw canvas
+  /* -----------------------------
+     REDRAW CANVAS
+  ----------------------------- */
   useEffect(() => {
-    draw();
+    draw(bgImage, fgImage, scale, pos);
   }, [bgImage, fgImage, scale, pos]);
 
-  const draw = () => {
+  const draw = (
+    bg: HTMLImageElement | null,
+    fg: HTMLImageElement | null,
+    s: number,
+    p: { x: number; y: number }
+  ) => {
+    if (!bg || !canvasRef.current) return;
+
     const canvas = canvasRef.current;
-    if (!canvas || !bgImage) return;
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Background
-    ctx.drawImage(bgImage, 0, 0);
+    ctx.drawImage(bg, 0, 0);
 
-    if (!fgImage) return;
+    if (!fg) return;
 
-    const height = bgImage.height * 0.4 * scale;
-    const width = (fgImage.width / fgImage.height) * height;
+    // Zielhöhe = 40 % der Background-Höhe
+    const targetHeight = bg.height * 0.4 * s;
+    const targetWidth = (fg.width / fg.height) * targetHeight;
 
-    // Clamp inside background
+    // Clamping (bleibt immer im Bild)
     const x = Math.min(
-      Math.max(pos.x, 0),
-      bgImage.width - width
+      Math.max(p.x, 0),
+      bg.width - targetWidth
     );
     const y = Math.min(
-      Math.max(pos.y, 0),
-      bgImage.height - height
+      Math.max(p.y, 0),
+      bg.height - targetHeight
     );
 
-    ctx.drawImage(fgImage, x, y, width, height);
+    ctx.drawImage(fg, x, y, targetWidth, targetHeight);
   };
 
+  /* -----------------------------
+     UPLOAD + BACKGROUND REMOVAL
+  ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
 
@@ -70,25 +85,34 @@ export default function Page() {
       body: formData,
     });
 
+    if (!res.ok) {
+      alert("Background removal failed");
+      setLoading(false);
+      return;
+    }
+
     const blob = await res.blob();
     const img = new Image();
     img.src = URL.createObjectURL(blob);
+
     img.onload = () => {
       setFgImage(img);
       setScale(1);
       setPos({
         x: bgImage!.width * 0.55,
-        y: bgImage!.height * 0.45,
+        y: bgImage!.height * 0.55,
       });
       setLoading(false);
     };
   };
 
-  // Mouse Events
+  /* -----------------------------
+     DRAG HANDLING (MOUSE)
+  ----------------------------- */
   const onMouseDown = (e: React.MouseEvent) => {
     if (!fgImage) return;
     setDragging(true);
-    setOffset({
+    setDragOffset({
       x: e.nativeEvent.offsetX - pos.x,
       y: e.nativeEvent.offsetY - pos.y,
     });
@@ -97,16 +121,19 @@ export default function Page() {
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragging) return;
     setPos({
-      x: e.nativeEvent.offsetX - offset.x,
-      y: e.nativeEvent.offsetY - offset.y,
+      x: e.nativeEvent.offsetX - dragOffset.x,
+      y: e.nativeEvent.offsetY - dragOffset.y,
     });
   };
 
   const onMouseUp = () => setDragging(false);
 
-  const download = () => {
-    const canvas = canvasRef.current!;
-    canvas.toBlob((blob) => {
+  /* -----------------------------
+     DOWNLOAD
+  ----------------------------- */
+  const downloadImage = () => {
+    if (!canvasRef.current) return;
+    canvasRef.current.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -116,52 +143,61 @@ export default function Page() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
-      <h1 className="text-3xl font-semibold mb-3 text-center">
+    <main className="min-h-screen bg-black text-white flex flex-col items-center px-6 py-12">
+      {/* Header */}
+      <h1 className="text-3xl md:text-4xl font-semibold mb-2 text-center">
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
-
-      <p className="text-gray-400 mb-6 text-center">
-        Upload your photo, position it, and download your final visual.
+      <p className="text-gray-400 mb-8 text-center max-w-xl">
+        Upload your photo, position it freely, and download your final visual.
       </p>
 
-      <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-4">
+      {/* Upload */}
+      <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
         {loading ? "Processing..." : "Upload photo"}
         <input
           type="file"
           accept="image/*"
           hidden
-          onChange={(e) => e.target.files && handleUpload(e.target.files[0])}
+          onChange={(e) =>
+            e.target.files && handleUpload(e.target.files[0])
+          }
         />
       </label>
 
-      <canvas
-        ref={canvasRef}
-        className="border rounded-xl cursor-move mb-4"
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-      />
+      {/* Canvas (RESPONSIVE!) */}
+      <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-auto rounded-xl border cursor-move"
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+        />
+      </div>
 
+      {/* Controls */}
       {fgImage && (
         <>
-          <div className="w-64 mb-4">
+          <div className="w-full max-w-xs mb-6">
             <input
               type="range"
-              min="0.5"
-              max="1.5"
+              min="0.6"
+              max="1.4"
               step="0.01"
               value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
+              onChange={(e) =>
+                setScale(Number(e.target.value))
+              }
               className="w-full"
             />
-            <p className="text-center text-sm text-gray-400">
-              Resize
+            <p className="text-center text-sm text-gray-400 mt-2">
+              Resize photo
             </p>
           </div>
 
           <button
-            onClick={download}
+            onClick={downloadImage}
             className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
           >
             Confirm & Download
