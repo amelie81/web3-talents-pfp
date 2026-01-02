@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /* -----------------------------
-   CUSTOM FONT (GLOBAL)
+   CUSTOM FONT
 ----------------------------- */
 const fontStyle = `
 @font-face {
@@ -30,7 +30,7 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
 
   /* -----------------------------
-     CANVAS COORD HELPER
+     CANVAS POSITION
   ----------------------------- */
   const getCanvasPos = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current!;
@@ -48,11 +48,10 @@ export default function Page() {
     const img = new Image();
     img.src = "/background.png";
     img.onload = () => {
-      setBgImage(img);
       const canvas = canvasRef.current!;
       canvas.width = img.width;
       canvas.height = img.height;
-      draw(img, null, scale, pos, name);
+      setBgImage(img);
     };
   }, []);
 
@@ -60,102 +59,91 @@ export default function Page() {
      REDRAW
   ----------------------------- */
   useEffect(() => {
-    draw(bgImage, fgImage, scale, pos, name);
+    draw();
   }, [bgImage, fgImage, scale, pos, name]);
-
-  /* -----------------------------
-     TEXT WRAP HELPER
-  ----------------------------- */
-  const drawWrappedText = (
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number
-  ) => {
-    const words = text.split(" ");
-    let line = "";
-    let offsetY = 0;
-
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line + words[i] + " ";
-      if (ctx.measureText(testLine).width > maxWidth && i > 0) {
-        ctx.fillText(line, x, y + offsetY);
-        line = words[i] + " ";
-        offsetY += lineHeight;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(line, x, y + offsetY);
-  };
 
   /* -----------------------------
      DRAW
   ----------------------------- */
-  const draw = (
-    bg: HTMLImageElement | null,
-    fg: HTMLImageElement | null,
-    s: number,
-    p: { x: number; y: number },
-    n: string
-  ) => {
-    if (!bg || !canvasRef.current) return;
+  const draw = () => {
+    if (!bgImage || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* Background */
-    ctx.drawImage(bg, 0, 0);
+    ctx.drawImage(bgImage, 0, 0);
 
-    /* ---- TEXT ---- */
-    if (n.trim()) {
-      const margin = canvas.width * 0.08;
-      const fontSize = canvas.width * 0.055; // größer
-      const lineHeight = fontSize * 1.25;
+    /* ---------- TEXT ---------- */
+    if (name.trim()) {
+      const fontSize = canvas.width * 0.055;
+      const y = canvas.height * 0.24;
+
+      ctx.textAlign = "center";
+      ctx.lineJoin = "round";
+
+      const drawOutlined = (text: string, font: string, x: number) => {
+        ctx.font = font;
+        ctx.lineWidth = fontSize * 0.18;
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeText(text, x, y);
+        ctx.fillStyle = "#000000";
+        ctx.fillText(text, x, y);
+      };
+
+      const prefix = `${name} is now officially part of the `;
+      const web3 = "Web3";
+      const suffix = " Talents Program!";
 
       ctx.font = `${fontSize}px "HelloMissDi"`;
-      ctx.fillStyle = "#ffffff";
-      ctx.textAlign = "center";
+      const w1 = ctx.measureText(prefix).width;
 
-      drawWrappedText(
-        ctx,
-        `${n} is now officially part of the Web3 Talents Program!`,
-        canvas.width / 2,
-        canvas.height * 0.24, // weiter unten
-        canvas.width - margin * 2,
-        lineHeight
+      ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`;
+      const w2 = ctx.measureText(web3).width;
+
+      ctx.font = `${fontSize}px "HelloMissDi"`;
+      const w3 = ctx.measureText(suffix).width;
+
+      const total = w1 + w2 + w3;
+      let x = canvas.width / 2 - total / 2;
+
+      drawOutlined(prefix, `${fontSize}px "HelloMissDi"`, x + w1 / 2);
+      x += w1;
+
+      drawOutlined(
+        web3,
+        `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`,
+        x + w2 / 2
       );
+      x += w2;
+
+      drawOutlined(suffix, `${fontSize}px "HelloMissDi"`, x + w3 / 2);
     }
 
-    /* ---- CIRCLE ---- */
-    const diameter = bg.height / 3;
+    /* ---------- CIRCLE ---------- */
+    const diameter = bgImage.height / 3;
     const radius = diameter / 2;
-    const cx = bg.width / 2;
-    const cy = bg.height * 0.6;
+    const cx = bgImage.width / 2;
+    const cy = bgImage.height * 0.6;
 
-    // white fill
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
 
-    if (fg) {
+    if (fgImage) {
       const baseHeight = diameter * 0.9;
-      const height = baseHeight * s;
-      const width = (fg.width / fg.height) * height;
+      const h = baseHeight * scale;
+      const w = (fgImage.width / fgImage.height) * h;
 
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(fg, p.x, p.y, width, height);
+      ctx.drawImage(fgImage, pos.x, pos.y, w, h);
       ctx.restore();
     }
 
-    // blue border
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.lineWidth = 16;
@@ -164,7 +152,7 @@ export default function Page() {
   };
 
   /* -----------------------------
-     UPLOAD (FALLBACK)
+     UPLOAD (WITH FALLBACK)
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -214,34 +202,6 @@ export default function Page() {
   const stopDrag = () => setDragging(false);
 
   /* -----------------------------
-     EVENTS
-  ----------------------------- */
-  const onMouseDown = (e: React.MouseEvent) => {
-    const p = getCanvasPos(e.clientX, e.clientY);
-    startDrag(p.x, p.y);
-  };
-
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return;
-    const p = getCanvasPos(e.clientX, e.clientY);
-    moveDrag(p.x, p.y);
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    const t = e.touches[0];
-    const p = getCanvasPos(t.clientX, t.clientY);
-    startDrag(p.x, p.y);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (!dragging) return;
-    e.preventDefault(); // Scroll nur während Drag blocken
-    const t = e.touches[0];
-    const p = getCanvasPos(t.clientX, t.clientY);
-    moveDrag(p.x, p.y);
-  };
-
-  /* -----------------------------
      DOWNLOAD
   ----------------------------- */
   const downloadImage = () => {
@@ -254,6 +214,34 @@ export default function Page() {
     });
   };
 
+  /* -----------------------------
+     PUBLIC SHARE
+  ----------------------------- */
+  const shareImage = async () => {
+    canvasRef.current!.toBlob(async (blob) => {
+      if (!blob) return;
+
+      const file = new File([blob], "web3-talents.png", { type: "image/png" });
+
+      // Mobile native share
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Web3 Talents",
+          text: "I just joined the Web3 Talents Program 🚀",
+        });
+      } else {
+        // Desktop fallback
+        downloadImage();
+        navigator.clipboard.writeText(window.location.href);
+        alert("Image downloaded. Page link copied to clipboard.");
+      }
+    });
+  };
+
+  /* -----------------------------
+     JSX
+  ----------------------------- */
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center px-6 py-12">
       <style>{fontStyle}</style>
@@ -263,10 +251,9 @@ export default function Page() {
       </h1>
 
       <p className="text-gray-400 mb-6 text-center max-w-xl">
-        Enter your name, upload your photo and download your official Web3 Talents visual.
+        Enter your name, upload your photo and share your official Web3 Talents visual.
       </p>
 
-      {/* NAME INPUT */}
       <input
         type="text"
         maxLength={30}
@@ -276,7 +263,6 @@ export default function Page() {
         className="mb-4 px-4 py-3 rounded-xl w-full max-w-sm text-white text-center bg-transparent border border-white placeholder-gray-400"
       />
 
-      {/* UPLOAD */}
       <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
         {loading ? "Processing..." : "Upload photo"}
         <input
@@ -287,45 +273,58 @@ export default function Page() {
         />
       </label>
 
-      {/* CANVAS */}
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
           className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing"
           style={{ touchAction: "pan-y" }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
+          onMouseDown={(e) => startDrag(...Object.values(getCanvasPos(e.clientX, e.clientY)))}
+          onMouseMove={(e) =>
+            dragging && moveDrag(...Object.values(getCanvasPos(e.clientX, e.clientY)))
+          }
           onMouseUp={stopDrag}
           onMouseLeave={stopDrag}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            startDrag(...Object.values(getCanvasPos(t.clientX, t.clientY)));
+          }}
+          onTouchMove={(e) => {
+            if (!dragging) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            moveDrag(...Object.values(getCanvasPos(t.clientX, t.clientY)));
+          }}
           onTouchEnd={stopDrag}
         />
       </div>
 
       {fgImage && (
         <>
-          <div className="w-full max-w-xs mb-6 border border-white rounded-xl px-4 py-3">
-            <input
-              type="range"
-              min="0.6"
-              max="1.6"
-              step="0.01"
-              value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
-              className="w-full"
-            />
-            <p className="text-center text-sm text-gray-300 mt-2">
-              Resize photo
-            </p>
-          </div>
+          <input
+            type="range"
+            min="0.6"
+            max="1.6"
+            step="0.01"
+            value={scale}
+            onChange={(e) => setScale(Number(e.target.value))}
+            className="w-full max-w-xs mb-6"
+          />
 
-          <button
-            onClick={downloadImage}
-            className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
-          >
-            Confirm & Download
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={downloadImage}
+              className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
+            >
+              Download
+            </button>
+
+            <button
+              onClick={shareImage}
+              className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
+            >
+              Share
+            </button>
+          </div>
         </>
       )}
     </main>
