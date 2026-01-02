@@ -9,6 +9,8 @@ const fontStyle = `
 @font-face {
   font-family: "HelloMissDi";
   src: url("/HelloMissDi.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
 }
 `;
 
@@ -105,21 +107,21 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* Background */
+    // Background
     ctx.drawImage(bg, 0, 0);
 
-    /* White frame around whole image */
-    const frameWidth = canvas.width * 0.015;
+    // White frame
+    const frame = canvas.width * 0.015;
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = frameWidth;
+    ctx.lineWidth = frame;
     ctx.strokeRect(
-      frameWidth / 2,
-      frameWidth / 2,
-      canvas.width - frameWidth,
-      canvas.height - frameWidth
+      frame / 2,
+      frame / 2,
+      canvas.width - frame,
+      canvas.height - frame
     );
 
-    /* Text */
+    // Text
     if (n.trim()) {
       const margin = canvas.width * 0.08;
       const fontSize = canvas.width * 0.055;
@@ -139,7 +141,7 @@ export default function Page() {
       );
     }
 
-    /* Circle */
+    // Circle
     const diameter = bg.height / 3;
     const radius = diameter / 2;
     const cx = bg.width / 2;
@@ -171,7 +173,7 @@ export default function Page() {
   };
 
   /* -----------------------------
-     UPLOAD (FALLBACK)
+     UPLOAD (remove.bg fallback)
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -206,7 +208,22 @@ export default function Page() {
   };
 
   /* -----------------------------
-     SHARE
+     DRAG HELPERS
+  ----------------------------- */
+  const startDrag = (x: number, y: number) => {
+    setDragging(true);
+    dragOffset.current = { x: x - pos.x, y: y - pos.y };
+  };
+
+  const moveDrag = (x: number, y: number) => {
+    if (!dragging) return;
+    setPos({ x: x - dragOffset.current.x, y: y - dragOffset.current.y });
+  };
+
+  const stopDrag = () => setDragging(false);
+
+  /* -----------------------------
+     SHARE / DOWNLOAD
   ----------------------------- */
   const shareImage = async () => {
     const canvas = canvasRef.current!;
@@ -217,8 +234,8 @@ export default function Page() {
 
     const file = new File([blob], "web3-talents.png", { type: "image/png" });
 
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      await (navigator as any).share({
         files: [file],
         title: "Web3 Talents",
         text: "I’m officially part of the Web3 Talents Program 🚀",
@@ -272,8 +289,8 @@ export default function Page() {
             const p = getCanvasPos(e.clientX, e.clientY);
             moveDrag(p.x, p.y);
           }}
-          onMouseUp={() => setDragging(false)}
-          onMouseLeave={() => setDragging(false)}
+          onMouseUp={stopDrag}
+          onMouseLeave={stopDrag}
           onTouchStart={(e) => {
             const t = e.touches[0];
             const p = getCanvasPos(t.clientX, t.clientY);
@@ -286,7 +303,7 @@ export default function Page() {
             const p = getCanvasPos(t.clientX, t.clientY);
             moveDrag(p.x, p.y);
           }}
-          onTouchEnd={() => setDragging(false)}
+          onTouchEnd={stopDrag}
         />
       </div>
 
@@ -298,7 +315,6 @@ export default function Page() {
           >
             Share
           </button>
-
           <button
             onClick={shareImage}
             className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
@@ -310,4 +326,3 @@ export default function Page() {
     </main>
   );
 }
-
