@@ -24,22 +24,7 @@ export default function Page() {
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
-  const [dragging, setDragging] = useState(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-
   const [loading, setLoading] = useState(false);
-
-  /* -----------------------------
-     CANVAS COORD HELPER
-  ----------------------------- */
-  const getCanvasPos = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * canvas.width,
-      y: ((clientY - rect.top) / rect.height) * canvas.height,
-    };
-  };
 
   /* -----------------------------
      LOAD BACKGROUND (WAIT FOR FONT)
@@ -70,54 +55,80 @@ export default function Page() {
   }, [bgImage, fgImage, scale, pos, name]);
 
   /* -----------------------------
-     DRAW TEXT (SPECIAL Web3 FIX)
+     WRAPPED TEXT WITH WEB3 FIX
   ----------------------------- */
-  const drawTextWithWeb3Fix = (
+  const drawWrappedTextWithWeb3Fix = (
     ctx: CanvasRenderingContext2D,
     text: string,
-    x: number,
-    y: number,
+    centerX: number,
+    startY: number,
     maxWidth: number,
     lineHeight: number,
     fontSize: number
   ) => {
-    const parts = text.split("Web3 Talents");
+    const words = text.split(" ");
+    let line: string[] = [];
+    let y = startY;
 
-    if (parts.length === 1) {
-      ctx.fillText(text, x, y);
-      return;
+    const measureWord = (word: string) => {
+      if (word === "Web3") {
+        ctx.font = `${fontSize}px "HelloMissDi"`;
+        const w1 = ctx.measureText("Web").width;
+        ctx.font = `${fontSize}px sans-serif`;
+        const w2 = ctx.measureText("3").width;
+        return w1 + w2;
+      }
+      ctx.font = `${fontSize}px "HelloMissDi"`;
+      return ctx.measureText(word).width;
+    };
+
+    const drawLine = (words: string[], y: number) => {
+      let totalWidth = 0;
+
+      words.forEach((w) => {
+        totalWidth += measureWord(w + " ");
+      });
+
+      let x = centerX - totalWidth / 2;
+
+      words.forEach((word) => {
+        if (word === "Web3") {
+          ctx.font = `${fontSize}px "HelloMissDi"`;
+          ctx.fillText("Web", x + ctx.measureText("Web").width / 2, y);
+          x += ctx.measureText("Web").width;
+
+          ctx.font = `${fontSize}px sans-serif`;
+          ctx.fillText("3", x + ctx.measureText("3").width / 2, y);
+          x += ctx.measureText("3").width + ctx.measureText(" ").width;
+        } else {
+          ctx.font = `${fontSize}px "HelloMissDi"`;
+          const w = ctx.measureText(word + " ").width;
+          ctx.fillText(word, x + w / 2, y);
+          x += w;
+        }
+      });
+    };
+
+    words.forEach((word) => {
+      const testLine = [...line, word];
+      let testWidth = 0;
+
+      testLine.forEach((w) => {
+        testWidth += measureWord(w + " ");
+      });
+
+      if (testWidth > maxWidth && line.length > 0) {
+        drawLine(line, y);
+        line = [word];
+        y += lineHeight;
+      } else {
+        line.push(word);
+      }
+    });
+
+    if (line.length) {
+      drawLine(line, y);
     }
-
-    const before = parts[0] + "Web";
-    const after = " Talents" + parts[1];
-
-    ctx.textAlign = "center";
-
-    ctx.font = `${fontSize}px "HelloMissDi"`;
-    const beforeWidth = ctx.measureText(before).width;
-
-    ctx.font = `${fontSize}px sans-serif`;
-    const threeWidth = ctx.measureText("3").width;
-
-    ctx.font = `${fontSize}px "HelloMissDi"`;
-    const afterWidth = ctx.measureText(after).width;
-
-    const totalWidth = beforeWidth + threeWidth + afterWidth;
-    let startX = x - totalWidth / 2;
-
-    // before
-    ctx.font = `${fontSize}px "HelloMissDi"`;
-    ctx.fillText(before, startX + beforeWidth / 2, y);
-    startX += beforeWidth;
-
-    // 3 (standard font)
-    ctx.font = `${fontSize}px sans-serif`;
-    ctx.fillText("3", startX + threeWidth / 2, y);
-    startX += threeWidth;
-
-    // after
-    ctx.font = `${fontSize}px "HelloMissDi"`;
-    ctx.fillText(after, startX + afterWidth / 2, y);
   };
 
   /* -----------------------------
@@ -136,10 +147,8 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
     ctx.drawImage(bg, 0, 0);
 
-    // White frame
     const frame = canvas.width * 0.015;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = frame;
@@ -150,15 +159,15 @@ export default function Page() {
       canvas.height - frame
     );
 
-    // Text
     if (n.trim()) {
       const margin = canvas.width * 0.08;
       const fontSize = canvas.width * 0.055;
       const lineHeight = fontSize * 1.25;
 
       ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
 
-      drawTextWithWeb3Fix(
+      drawWrappedTextWithWeb3Fix(
         ctx,
         `${n} is now officially part of the Web3 Talents Program!`,
         canvas.width / 2,
@@ -169,7 +178,6 @@ export default function Page() {
       );
     }
 
-    // Circle
     const diameter = bg.height / 3;
     const radius = diameter / 2;
     const cx = bg.width / 2;
@@ -205,55 +213,22 @@ export default function Page() {
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
-    let imageUrl: string;
-
-    try {
-      const fd = new FormData();
-      fd.append("image", file);
-      const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
-      imageUrl = res.ok
-        ? URL.createObjectURL(await res.blob())
-        : URL.createObjectURL(file);
-    } catch {
-      imageUrl = URL.createObjectURL(file);
-    }
+    const url = URL.createObjectURL(file);
 
     const img = new Image();
-    img.src = imageUrl;
+    img.src = url;
     img.onload = () => {
       const diameter = bgImage!.height / 3;
       const baseHeight = diameter * 0.9;
-      const initialScale = baseHeight / img.height;
 
       setFgImage(img);
       setScale(1);
       setPos({
-        x: bgImage!.width / 2 - (img.width * initialScale) / 2,
-        y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
+        x: bgImage!.width / 2 - (img.width * baseHeight) / img.height / 2,
+        y: bgImage!.height * 0.6 - baseHeight / 2,
       });
       setLoading(false);
     };
-  };
-
-  /* -----------------------------
-     SHARE / DOWNLOAD
-  ----------------------------- */
-  const shareImage = async () => {
-    const canvas = canvasRef.current!;
-    const blob = await new Promise<Blob | null>((res) =>
-      canvas.toBlob(res, "image/png")
-    );
-    if (!blob) return;
-
-    const file = new File([blob], "web3-talents.png", { type: "image/png" });
-
-    if ("share" in navigator) {
-      await (navigator as any).share({
-        files: [file],
-        title: "Web3 Talents",
-        text: "I’m officially part of the Web3 Talents Program 🚀",
-      });
-    }
   };
 
   const downloadImage = async () => {
@@ -266,9 +241,7 @@ export default function Page() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "web3-talents.png";
-    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
   };
 
   return (
@@ -278,6 +251,11 @@ export default function Page() {
       <h1 className="text-3xl md:text-4xl font-semibold mb-2 text-center">
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
+
+      <p className="text-center text-gray-300 mb-6 max-w-md">
+        Add your name, upload a photo, adjust its position, and download or share
+        your personalized Web3 Talents graphic.
+      </p>
 
       <input
         type="text"
@@ -306,20 +284,12 @@ export default function Page() {
       </div>
 
       {fgImage && (
-        <div className="flex gap-4">
-          <button
-            onClick={shareImage}
-            className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
-          >
-            Share
-          </button>
-          <button
-            onClick={downloadImage}
-            className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
-          >
-            Download
-          </button>
-        </div>
+        <button
+          onClick={downloadImage}
+          className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
+        >
+          Download
+        </button>
       )}
     </main>
   );
