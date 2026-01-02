@@ -51,6 +51,35 @@ export default function Page() {
     draw(bgImage, fgImage, scale, pos, name);
   }, [bgImage, fgImage, scale, pos, name]);
 
+  /* -----------------------------
+     TEXT WRAP HELPER
+  ----------------------------- */
+  const drawWrappedText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number
+  ) => {
+    const words = text.split(" ");
+    let line = "";
+    let offsetY = 0;
+
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + " ";
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && n > 0) {
+        ctx.fillText(line, x, y + offsetY);
+        line = words[n] + " ";
+        offsetY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, y + offsetY);
+  };
+
   const draw = (
     bg: HTMLImageElement | null,
     fg: HTMLImageElement | null,
@@ -69,15 +98,22 @@ export default function Page() {
 
     /* ---- TEXT ---- */
     if (n.trim().length > 0) {
-      const fontSize = canvas.width * 0.045; // proportional
+      const safeMargin = canvas.width * 0.08;
+      const maxTextWidth = canvas.width - safeMargin * 2;
+      const fontSize = canvas.width * 0.042;
+      const lineHeight = fontSize * 1.25;
+
       ctx.font = `600 ${fontSize}px Arial`;
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
 
-      ctx.fillText(
+      drawWrappedText(
+        ctx,
         `${n} is now officially part of the Web3 Talents Program!`,
         canvas.width / 2,
-        canvas.height * 0.12
+        canvas.height * 0.18, // etwas tiefer
+        maxTextWidth,
+        lineHeight
       );
     }
 
@@ -102,7 +138,6 @@ export default function Page() {
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.clip();
-
       ctx.drawImage(fg, p.x, p.y, width, height);
       ctx.restore();
     }
@@ -116,22 +151,25 @@ export default function Page() {
   };
 
   /* -----------------------------
-     UPLOAD
+     UPLOAD (WITH FALLBACK)
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
+    let imageUrl: string;
 
-    const formData = new FormData();
-    formData.append("image", file);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/remove-bg", { method: "POST", body: formData });
+      imageUrl = res.ok
+        ? URL.createObjectURL(await res.blob())
+        : URL.createObjectURL(file);
+    } catch {
+      imageUrl = URL.createObjectURL(file);
+    }
 
-    const res = await fetch("/api/remove-bg", {
-      method: "POST",
-      body: formData,
-    });
-
-    const blob = await res.blob();
     const img = new Image();
-    img.src = URL.createObjectURL(blob);
+    img.src = imageUrl;
 
     img.onload = () => {
       const diameter = bgImage!.height / 3;
@@ -140,12 +178,10 @@ export default function Page() {
 
       setFgImage(img);
       setScale(1);
-
       setPos({
         x: bgImage!.width / 2 - (img.width * initialScale) / 2,
         y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
       });
-
       setLoading(false);
     };
   };
@@ -160,10 +196,7 @@ export default function Page() {
 
   const moveDrag = (x: number, y: number) => {
     if (!dragging) return;
-    setPos({
-      x: x - dragOffset.current.x,
-      y: y - dragOffset.current.y,
-    });
+    setPos({ x: x - dragOffset.current.x, y: y - dragOffset.current.y });
   };
 
   const stopDrag = () => setDragging(false);
@@ -222,10 +255,11 @@ export default function Page() {
       {/* NAME INPUT */}
       <input
         type="text"
+        maxLength={30}
         placeholder="Your name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="mb-4 px-4 py-3 rounded-xl w-full max-w-sm text-black text-center"
+        className="mb-4 px-4 py-3 rounded-xl w-full max-w-sm text-white text-center bg-transparent border border-white placeholder-gray-400"
       />
 
       {/* UPLOAD */}
@@ -235,9 +269,7 @@ export default function Page() {
           type="file"
           accept="image/*"
           hidden
-          onChange={(e) =>
-            e.target.files && handleUpload(e.target.files[0])
-          }
+          onChange={(e) => e.target.files && handleUpload(e.target.files[0])}
         />
       </label>
 
@@ -265,9 +297,7 @@ export default function Page() {
               max="1.6"
               step="0.01"
               value={scale}
-              onChange={(e) =>
-                setScale(Number(e.target.value))
-              }
+              onChange={(e) => setScale(Number(e.target.value))}
               className="w-full"
             />
             <p className="text-center text-sm text-gray-300 mt-2">
