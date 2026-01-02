@@ -70,29 +70,31 @@ export default function Page() {
   }, [bgImage, fgImage, scale, pos, name]);
 
   /* -----------------------------
-     TEXT WRAP (Web3: only "3" different font)
+     TEXT WRAP (ONLY "3" DIFFERENT FONT)
   ----------------------------- */
   const drawWrappedText = (
     ctx: CanvasRenderingContext2D,
     text: string,
-    x: number,
-    y: number,
+    centerX: number,
+    startY: number,
     maxWidth: number,
-    lineHeight: number
+    lineHeight: number,
+    fontSize: number
   ) => {
     const words = text.split(" ");
     let line: string[] = [];
-    let offsetY = 0;
+    let y = startY;
 
     const measureWord = (word: string) => {
       if (word === "Web3") {
-        ctx.font = ctx.font;
-        const webWidth = ctx.measureText("Web").width;
-        ctx.font = ctx.font.replace(/".*?"/, "sans-serif");
-        const threeWidth = ctx.measureText("3").width;
-        ctx.font = ctx.font.replace("sans-serif", `"HelloMissDi"`);
-        return webWidth + threeWidth;
+        ctx.font = `${fontSize}px "HelloMissDi"`;
+        const webW = ctx.measureText("Web").width;
+        ctx.font = `${fontSize}px sans-serif`;
+        const threeW = ctx.measureText("3").width;
+        ctx.font = `${fontSize}px "HelloMissDi"`;
+        return webW + threeW + ctx.measureText(" ").width;
       }
+      ctx.font = `${fontSize}px "HelloMissDi"`;
       return ctx.measureText(word + " ").width;
     };
 
@@ -100,25 +102,26 @@ export default function Page() {
       let totalWidth = 0;
       words.forEach((w) => (totalWidth += measureWord(w)));
 
-      let startX = x - totalWidth / 2;
+      let x = centerX - totalWidth / 2;
 
       words.forEach((word) => {
         if (word === "Web3") {
-          ctx.font = ctx.font;
+          ctx.font = `${fontSize}px "HelloMissDi"`;
           const webW = ctx.measureText("Web").width;
-          ctx.fillText("Web", startX + webW / 2, yPos);
-          startX += webW;
+          ctx.fillText("Web", x + webW / 2, yPos);
+          x += webW;
 
-          ctx.font = ctx.font.replace(/".*?"/, "sans-serif");
+          ctx.font = `${fontSize}px sans-serif`;
           const threeW = ctx.measureText("3").width;
-          ctx.fillText("3", startX + threeW / 2, yPos);
-          startX += threeW + ctx.measureText(" ").width;
+          ctx.fillText("3", x + threeW / 2, yPos);
+          x += threeW + ctx.measureText(" ").width;
 
-          ctx.font = ctx.font.replace("sans-serif", `"HelloMissDi"`);
+          ctx.font = `${fontSize}px "HelloMissDi"`;
         } else {
+          ctx.font = `${fontSize}px "HelloMissDi"`;
           const w = ctx.measureText(word + " ").width;
-          ctx.fillText(word, startX + w / 2, yPos);
-          startX += w;
+          ctx.fillText(word, x + w / 2, yPos);
+          x += w;
         }
       });
     };
@@ -129,17 +132,15 @@ export default function Page() {
       testLine.forEach((w) => (testWidth += measureWord(w)));
 
       if (testWidth > maxWidth && line.length > 0) {
-        drawLine(line, y + offsetY);
+        drawLine(line, y);
         line = [word];
-        offsetY += lineHeight;
+        y += lineHeight;
       } else {
         line.push(word);
       }
     });
 
-    if (line.length) {
-      drawLine(line, y + offsetY);
-    }
+    if (line.length) drawLine(line, y);
   };
 
   /* -----------------------------
@@ -175,7 +176,6 @@ export default function Page() {
       const fontSize = canvas.width * 0.055;
       const lineHeight = fontSize * 1.25;
 
-      ctx.font = `${fontSize}px "HelloMissDi"`;
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
 
@@ -185,77 +185,7 @@ export default function Page() {
         canvas.width / 2,
         canvas.height * 0.26,
         canvas.width - margin * 2,
-        lineHeight
-      );
-    }
-
-    const diameter = bg.height / 3;
-    const radius = diameter / 2;
-    const cx = bg.width / 2;
-    const cy = bg.height * 0.6;
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-
-    if (fg) {
-      const baseHeight = diameter * 0.9;
-      const height = baseHeight * s;
-      const width = (fg.width / fg.height) * height;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(fg, p.x, p.y, width, height);
-      ctx.restore();
-    }
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.lineWidth = 16;
-    ctx.strokeStyle = "#2563eb";
-    ctx.stroke();
-  };
-
-/* -----------------------------
-     DRAW
-  ----------------------------- */
-  const draw = (
-    bg: HTMLImageElement | null,
-    fg: HTMLImageElement | null,
-    s: number,
-    p: { x: number; y: number },
-    n: string
-  ) => {
-    if (!bg || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.drawImage(bg, 0, 0);
-
-    const frame = canvas.width * 0.015;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = frame;
-    ctx.strokeRect(
-      frame / 2,
-      frame / 2,
-      canvas.width - frame,
-      canvas.height - frame
-    );
-
-    if (n.trim()) {
-      const fontSize = canvas.width * 0.055;
-      ctx.fillStyle = "#ffffff";
-
-      drawTextWithWeb3Fix(
-        ctx,
-        `${n} is now officially part of the Web3 Talents Program!`,
-        canvas.width / 2,
-        canvas.height * 0.26,
+        lineHeight,
         fontSize
       );
     }
@@ -295,26 +225,53 @@ export default function Page() {
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
-    const imageUrl = URL.createObjectURL(file);
+    let imageUrl: string;
+
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
+      imageUrl = res.ok
+        ? URL.createObjectURL(await res.blob())
+        : URL.createObjectURL(file);
+    } catch {
+      imageUrl = URL.createObjectURL(file);
+    }
 
     const img = new Image();
     img.src = imageUrl;
     img.onload = () => {
       const diameter = bgImage!.height / 3;
       const baseHeight = diameter * 0.9;
+      const initialScale = baseHeight / img.height;
 
       setFgImage(img);
       setScale(1);
       setPos({
-        x: bgImage!.width / 2 - (img.width * baseHeight) / img.height / 2,
-        y: bgImage!.height * 0.6 - baseHeight / 2,
+        x: bgImage!.width / 2 - (img.width * initialScale) / 2,
+        y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
       });
       setLoading(false);
     };
   };
 
   /* -----------------------------
-     SHARE / DOWNLOAD
+     DRAG
+  ----------------------------- */
+  const startDrag = (x: number, y: number) => {
+    setDragging(true);
+    dragOffset.current = { x: x - pos.x, y: y - pos.y };
+  };
+
+  const moveDrag = (x: number, y: number) => {
+    if (!dragging) return;
+    setPos({ x: x - dragOffset.current.x, y: y - dragOffset.current.y });
+  };
+
+  const stopDrag = () => setDragging(false);
+
+  /* -----------------------------
+     SHARE
   ----------------------------- */
   const shareImage = async () => {
     const canvas = canvasRef.current!;
@@ -334,6 +291,9 @@ export default function Page() {
     }
   };
 
+  /* -----------------------------
+     DOWNLOAD
+  ----------------------------- */
   const downloadImage = async () => {
     const canvas = canvasRef.current!;
     const blob = await new Promise<Blob | null>((res) =>
@@ -344,7 +304,9 @@ export default function Page() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "web3-talents.png";
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -355,13 +317,95 @@ export default function Page() {
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
 
-      {/* ✅ EINZIGE UI-ERGÄNZUNG */}
       <p className="text-center text-gray-300 mb-6 max-w-md">
         Add your name, upload a photo, adjust its size and position, then download
         or share your personalized graphic.
       </p>
 
-      {/* Rest unverändert */}
+      <input
+        type="text"
+        maxLength={30}
+        placeholder="Your name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="mb-4 px-4 py-3 rounded-xl w-full max-w-sm text-white text-center bg-transparent border border-white placeholder-gray-400"
+      />
+
+      <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
+        {loading ? "Processing..." : "Upload photo"}
+        <input
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => e.target.files && handleUpload(e.target.files[0])}
+        />
+      </label>
+
+      <div className="w-full max-w-[420px] md:max-w-[520px] mb-4">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "pan-y" }}
+          onMouseDown={(e) => {
+            const p = getCanvasPos(e.clientX, e.clientY);
+            startDrag(p.x, p.y);
+          }}
+          onMouseMove={(e) => {
+            if (!dragging) return;
+            const p = getCanvasPos(e.clientX, e.clientY);
+            moveDrag(p.x, p.y);
+          }}
+          onMouseUp={stopDrag}
+          onMouseLeave={stopDrag}
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            const p = getCanvasPos(t.clientX, t.clientY);
+            startDrag(p.x, p.y);
+          }}
+          onTouchMove={(e) => {
+            if (!dragging) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            const p = getCanvasPos(t.clientX, t.clientY);
+            moveDrag(p.x, p.y);
+          }}
+          onTouchEnd={stopDrag}
+        />
+      </div>
+
+      {fgImage && (
+        <div className="w-full max-w-xs mb-6 border border-white rounded-xl px-4 py-3">
+          <input
+            type="range"
+            min="0.6"
+            max="1.6"
+            step="0.01"
+            value={scale}
+            onChange={(e) => setScale(Number(e.target.value))}
+            className="w-full"
+          />
+          <p className="text-center text-sm text-gray-300 mt-2">
+            Resize photo
+          </p>
+        </div>
+      )}
+
+      {fgImage && (
+        <div className="flex gap-4">
+          <button
+            onClick={shareImage}
+            className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Share
+          </button>
+          <button
+            onClick={downloadImage}
+            className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Download
+          </button>
+        </div>
+      )}
     </main>
   );
 }
