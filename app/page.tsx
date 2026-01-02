@@ -24,22 +24,7 @@ export default function Page() {
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
-  const [dragging, setDragging] = useState(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-
   const [loading, setLoading] = useState(false);
-
-  /* -----------------------------
-     CANVAS POSITION
-  ----------------------------- */
-  const getCanvasPos = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width) * canvas.width,
-      y: ((clientY - rect.top) / rect.height) * canvas.height,
-    };
-  };
 
   /* -----------------------------
      LOAD BACKGROUND
@@ -72,6 +57,7 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    /* BACKGROUND */
     ctx.drawImage(bgImage, 0, 0);
 
     /* ---------- TEXT ---------- */
@@ -92,35 +78,43 @@ export default function Page() {
       };
 
       const prefix = `${name} is now officially part of the `;
-      const web3 = "Web3";
+      const web = "Web";
+      const three = "3";
       const suffix = " Talents Program!";
 
+      // Measure widths
       ctx.font = `${fontSize}px "HelloMissDi"`;
-      const w1 = ctx.measureText(prefix).width;
+      const wPrefix = ctx.measureText(prefix).width;
+      const wWeb = ctx.measureText(web).width;
+      const wSuffix = ctx.measureText(suffix).width;
 
       ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`;
-      const w2 = ctx.measureText(web3).width;
+      const wThree = ctx.measureText(three).width;
 
-      ctx.font = `${fontSize}px "HelloMissDi"`;
-      const w3 = ctx.measureText(suffix).width;
+      const totalWidth = wPrefix + wWeb + wThree + wSuffix;
+      let x = canvas.width / 2 - totalWidth / 2;
 
-      const total = w1 + w2 + w3;
-      let x = canvas.width / 2 - total / 2;
+      // PREFIX – HelloMissDi
+      drawOutlined(prefix, `${fontSize}px "HelloMissDi"`, x + wPrefix / 2);
+      x += wPrefix;
 
-      drawOutlined(prefix, `${fontSize}px "HelloMissDi"`, x + w1 / 2);
-      x += w1;
+      // "Web" – HelloMissDi
+      drawOutlined(web, `${fontSize}px "HelloMissDi"`, x + wWeb / 2);
+      x += wWeb;
 
+      // "3" – STANDARD FONT ONLY
       drawOutlined(
-        web3,
+        three,
         `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`,
-        x + w2 / 2
+        x + wThree / 2
       );
-      x += w2;
+      x += wThree;
 
-      drawOutlined(suffix, `${fontSize}px "HelloMissDi"`, x + w3 / 2);
+      // SUFFIX – HelloMissDi
+      drawOutlined(suffix, `${fontSize}px "HelloMissDi"`, x + wSuffix / 2);
     }
 
-    /* ---------- CIRCLE ---------- */
+    /* ---------- PROFILE CIRCLE ---------- */
     const diameter = bgImage.height / 3;
     const radius = diameter / 2;
     const cx = bgImage.width / 2;
@@ -149,10 +143,20 @@ export default function Page() {
     ctx.lineWidth = 16;
     ctx.strokeStyle = "#2563eb";
     ctx.stroke();
+
+    /* ---------- GLOBAL WHITE BORDER ---------- */
+    ctx.lineWidth = Math.max(8, canvas.width * 0.006);
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeRect(
+      ctx.lineWidth / 2,
+      ctx.lineWidth / 2,
+      canvas.width - ctx.lineWidth,
+      canvas.height - ctx.lineWidth
+    );
   };
 
   /* -----------------------------
-     UPLOAD (WITH FALLBACK)
+     UPLOAD (FALLBACK SAFE)
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -174,35 +178,19 @@ export default function Page() {
     img.onload = () => {
       const diameter = bgImage!.height / 3;
       const baseHeight = diameter * 0.9;
-      const initialScale = baseHeight / img.height;
 
       setFgImage(img);
       setScale(1);
       setPos({
-        x: bgImage!.width / 2 - (img.width * initialScale) / 2,
-        y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
+        x: bgImage!.width / 2 - (img.width * baseHeight) / (2 * img.height),
+        y: bgImage!.height * 0.6 - baseHeight / 2,
       });
       setLoading(false);
     };
   };
 
   /* -----------------------------
-     DRAG
-  ----------------------------- */
-  const startDrag = (x: number, y: number) => {
-    setDragging(true);
-    dragOffset.current = { x: x - pos.x, y: y - pos.y };
-  };
-
-  const moveDrag = (x: number, y: number) => {
-    if (!dragging) return;
-    setPos({ x: x - dragOffset.current.x, y: y - dragOffset.current.y });
-  };
-
-  const stopDrag = () => setDragging(false);
-
-  /* -----------------------------
-     DOWNLOAD
+     DOWNLOAD / SHARE
   ----------------------------- */
   const downloadImage = () => {
     canvasRef.current!.toBlob((blob) => {
@@ -214,16 +202,11 @@ export default function Page() {
     });
   };
 
-  /* -----------------------------
-     PUBLIC SHARE
-  ----------------------------- */
   const shareImage = async () => {
     canvasRef.current!.toBlob(async (blob) => {
       if (!blob) return;
-
       const file = new File([blob], "web3-talents.png", { type: "image/png" });
 
-      // Mobile native share
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -231,10 +214,9 @@ export default function Page() {
           text: "I just joined the Web3 Talents Program 🚀",
         });
       } else {
-        // Desktop fallback
         downloadImage();
         navigator.clipboard.writeText(window.location.href);
-        alert("Image downloaded. Page link copied to clipboard.");
+        alert("Image downloaded & page link copied.");
       }
     });
   };
@@ -276,57 +258,27 @@ export default function Page() {
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
-          className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing"
-          style={{ touchAction: "pan-y" }}
-          onMouseDown={(e) => startDrag(...Object.values(getCanvasPos(e.clientX, e.clientY)))}
-          onMouseMove={(e) =>
-            dragging && moveDrag(...Object.values(getCanvasPos(e.clientX, e.clientY)))
-          }
-          onMouseUp={stopDrag}
-          onMouseLeave={stopDrag}
-          onTouchStart={(e) => {
-            const t = e.touches[0];
-            startDrag(...Object.values(getCanvasPos(t.clientX, t.clientY)));
-          }}
-          onTouchMove={(e) => {
-            if (!dragging) return;
-            e.preventDefault();
-            const t = e.touches[0];
-            moveDrag(...Object.values(getCanvasPos(t.clientX, t.clientY)));
-          }}
-          onTouchEnd={stopDrag}
+          className="w-full h-auto rounded-xl border border-white"
         />
       </div>
 
       {fgImage && (
-        <>
-          <input
-            type="range"
-            min="0.6"
-            max="1.6"
-            step="0.01"
-            value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
-            className="w-full max-w-xs mb-6"
-          />
-
-          <div className="flex gap-4">
-            <button
-              onClick={downloadImage}
-              className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
-            >
-              Download
-            </button>
-
-            <button
-              onClick={shareImage}
-              className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
-            >
-              Share
-            </button>
-          </div>
-        </>
+        <div className="flex gap-4">
+          <button
+            onClick={downloadImage}
+            className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Download
+          </button>
+          <button
+            onClick={shareImage}
+            className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Share
+          </button>
+        </div>
       )}
     </main>
   );
 }
+
