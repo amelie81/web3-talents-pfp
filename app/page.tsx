@@ -16,7 +16,22 @@ export default function Page() {
 
   const [loading, setLoading] = useState(false);
 
-  /* ---------------- BACKGROUND LOAD ---------------- */
+  /* -----------------------------
+     CANVAS COORDINATE HELPER
+  ----------------------------- */
+  const getCanvasPos = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((clientX - rect.left) / rect.width) * canvas.width,
+      y: ((clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  /* -----------------------------
+     LOAD BACKGROUND
+  ----------------------------- */
   useEffect(() => {
     const img = new Image();
     img.src = "/background.png";
@@ -29,7 +44,9 @@ export default function Page() {
     };
   }, []);
 
-  /* ---------------- REDRAW ---------------- */
+  /* -----------------------------
+     REDRAW
+  ----------------------------- */
   useEffect(() => {
     draw(bgImage, fgImage, scale, pos);
   }, [bgImage, fgImage, scale, pos]);
@@ -50,16 +67,19 @@ export default function Page() {
 
     if (!fg) return;
 
-    const targetHeight = bg.height * 0.4 * s;
-    const targetWidth = (fg.width / fg.height) * targetHeight;
+    const baseHeight = bg.height * 0.4;
+    const height = baseHeight * s;
+    const width = (fg.width / fg.height) * height;
 
-    const x = Math.min(Math.max(p.x, 0), bg.width - targetWidth);
-    const y = Math.min(Math.max(p.y, 0), bg.height - targetHeight);
+    const x = Math.min(Math.max(p.x, 0), bg.width - width);
+    const y = Math.min(Math.max(p.y, 0), bg.height - height);
 
-    ctx.drawImage(fg, x, y, targetWidth, targetHeight);
+    ctx.drawImage(fg, x, y, width, height);
   };
 
-  /* ---------------- UPLOAD ---------------- */
+  /* -----------------------------
+     UPLOAD
+  ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
 
@@ -70,6 +90,12 @@ export default function Page() {
       method: "POST",
       body: formData,
     });
+
+    if (!res.ok) {
+      alert("Background removal failed");
+      setLoading(false);
+      return;
+    }
 
     const blob = await res.blob();
     const img = new Image();
@@ -86,7 +112,9 @@ export default function Page() {
     };
   };
 
-  /* ---------------- DRAG LOGIC ---------------- */
+  /* -----------------------------
+     DRAG LOGIC
+  ----------------------------- */
   const isInsideImage = (x: number, y: number) => {
     if (!bgImage || !fgImage) return false;
 
@@ -117,44 +145,47 @@ export default function Page() {
 
   const stopDrag = () => setDragging(false);
 
-  /* ---------------- MOUSE EVENTS ---------------- */
-  const onMouseDown = (e: React.MouseEvent) =>
-    startDrag(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-  const onMouseMove = (e: React.MouseEvent) =>
-    moveDrag(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-  const onMouseUp = stopDrag;
-
-  /* ---------------- TOUCH EVENTS ---------------- */
-  const getTouchPos = (e: React.TouchEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const touch = e.touches[0];
-    return {
-      x:
-        ((touch.clientX - rect.left) / rect.width) *
-        canvasRef.current!.width,
-      y:
-        ((touch.clientY - rect.top) / rect.height) *
-        canvasRef.current!.height,
-    };
+  /* -----------------------------
+     MOUSE EVENTS
+  ----------------------------- */
+  const onMouseDown = (e: React.MouseEvent) => {
+    const p = getCanvasPos(e.clientX, e.clientY);
+    startDrag(p.x, p.y);
   };
 
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging) return;
+    const p = getCanvasPos(e.clientX, e.clientY);
+    moveDrag(p.x, p.y);
+  };
+
+  const onMouseUp = stopDrag;
+
+  /* -----------------------------
+     TOUCH EVENTS
+  ----------------------------- */
   const onTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
-    const p = getTouchPos(e);
+    const t = e.touches[0];
+    const p = getCanvasPos(t.clientX, t.clientY);
     startDrag(p.x, p.y);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     e.preventDefault();
-    const p = getTouchPos(e);
+    const t = e.touches[0];
+    const p = getCanvasPos(t.clientX, t.clientY);
     moveDrag(p.x, p.y);
   };
 
   const onTouchEnd = stopDrag;
 
-  /* ---------------- DOWNLOAD ---------------- */
+  /* -----------------------------
+     DOWNLOAD
+  ----------------------------- */
   const downloadImage = () => {
-    canvasRef.current!.toBlob((blob) => {
+    if (!canvasRef.current) return;
+    canvasRef.current.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -168,6 +199,7 @@ export default function Page() {
       <h1 className="text-3xl md:text-4xl font-semibold mb-2 text-center">
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
+
       <p className="text-gray-400 mb-8 text-center max-w-xl">
         Upload your photo, drag it into position, resize it and download your
         final visual.
@@ -185,6 +217,7 @@ export default function Page() {
         />
       </label>
 
+      {/* RESPONSIVE CANVAS */}
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
@@ -208,9 +241,7 @@ export default function Page() {
               max="1.4"
               step="0.01"
               value={scale}
-              onChange={(e) =>
-                setScale(Number(e.target.value))
-              }
+              onChange={(e) => setScale(Number(e.target.value))}
               className="w-full"
             />
             <p className="text-center text-sm text-gray-300 mt-2">
@@ -229,6 +260,4 @@ export default function Page() {
     </main>
   );
 }
-
-
 
