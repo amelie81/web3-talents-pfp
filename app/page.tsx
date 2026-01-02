@@ -8,6 +8,7 @@ export default function Page() {
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const [fgImage, setFgImage] = useState<HTMLImageElement | null>(null);
 
+  const [name, setName] = useState("");
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
@@ -17,7 +18,7 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
 
   /* -----------------------------
-     CANVAS COORDINATE HELPER
+     CANVAS COORD HELPER
   ----------------------------- */
   const getCanvasPos = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current!;
@@ -33,13 +34,13 @@ export default function Page() {
   ----------------------------- */
   useEffect(() => {
     const img = new Image();
-    img.src = "/background1.png";
+    img.src = "/background.png";
     img.onload = () => {
       setBgImage(img);
       const canvas = canvasRef.current!;
       canvas.width = img.width;
       canvas.height = img.height;
-      draw(img, null, scale, pos);
+      draw(img, null, scale, pos, name);
     };
   }, []);
 
@@ -47,14 +48,15 @@ export default function Page() {
      REDRAW
   ----------------------------- */
   useEffect(() => {
-    draw(bgImage, fgImage, scale, pos);
-  }, [bgImage, fgImage, scale, pos]);
+    draw(bgImage, fgImage, scale, pos, name);
+  }, [bgImage, fgImage, scale, pos, name]);
 
   const draw = (
     bg: HTMLImageElement | null,
     fg: HTMLImageElement | null,
     s: number,
-    p: { x: number; y: number }
+    p: { x: number; y: number },
+    n: string
   ) => {
     if (!bg || !canvasRef.current) return;
 
@@ -65,13 +67,27 @@ export default function Page() {
     /* Background */
     ctx.drawImage(bg, 0, 0);
 
-    /* Circle geometry */
+    /* ---- TEXT ---- */
+    if (n.trim().length > 0) {
+      const fontSize = canvas.width * 0.045; // proportional
+      ctx.font = `600 ${fontSize}px Arial`;
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+
+      ctx.fillText(
+        `${n} is now officially part of the Web3 Talents Program!`,
+        canvas.width / 2,
+        canvas.height * 0.12
+      );
+    }
+
+    /* ---- CIRCLE ---- */
     const diameter = bg.height / 3;
     const radius = diameter / 2;
     const cx = bg.width / 2;
-    const cy = bg.height * 0.6; // weiter nach oben
+    const cy = bg.height * 0.6;
 
-    /* White fill */
+    // white fill
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
@@ -91,11 +107,11 @@ export default function Page() {
       ctx.restore();
     }
 
-    /* Thicker blue border */
+    // blue border
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.lineWidth = 16; // deutlich dicker
-    ctx.strokeStyle = "#2563eb"; // blue
+    ctx.lineWidth = 16;
+    ctx.strokeStyle = "#2563eb";
     ctx.stroke();
   };
 
@@ -125,7 +141,6 @@ export default function Page() {
       setFgImage(img);
       setScale(1);
 
-      // AUTOMATISCH IM KREIS ZENTRIERT
       setPos({
         x: bgImage!.width / 2 - (img.width * initialScale) / 2,
         y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
@@ -136,7 +151,7 @@ export default function Page() {
   };
 
   /* -----------------------------
-     DRAG LOGIC
+     DRAG
   ----------------------------- */
   const startDrag = (x: number, y: number) => {
     setDragging(true);
@@ -154,7 +169,7 @@ export default function Page() {
   const stopDrag = () => setDragging(false);
 
   /* -----------------------------
-     MOUSE EVENTS
+     EVENTS
   ----------------------------- */
   const onMouseDown = (e: React.MouseEvent) => {
     const p = getCanvasPos(e.clientX, e.clientY);
@@ -167,9 +182,6 @@ export default function Page() {
     moveDrag(p.x, p.y);
   };
 
-  /* -----------------------------
-     TOUCH EVENTS
-  ----------------------------- */
   const onTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
     const t = e.touches[0];
@@ -203,11 +215,20 @@ export default function Page() {
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
 
-      <p className="text-gray-400 mb-8 text-center max-w-xl">
-        Upload your photo, adjust it inside the circle and download your final
-        visual.
+      <p className="text-gray-400 mb-6 text-center max-w-xl">
+        Enter your name, upload your photo and download your official Web3 Talents visual.
       </p>
 
+      {/* NAME INPUT */}
+      <input
+        type="text"
+        placeholder="Your name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="mb-4 px-4 py-3 rounded-xl w-full max-w-sm text-black text-center"
+      />
+
+      {/* UPLOAD */}
       <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
         {loading ? "Processing..." : "Upload photo"}
         <input
@@ -220,6 +241,7 @@ export default function Page() {
         />
       </label>
 
+      {/* CANVAS */}
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
