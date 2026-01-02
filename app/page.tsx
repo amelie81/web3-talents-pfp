@@ -10,29 +10,26 @@ export default function Page() {
 
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
+
   const [dragging, setDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragOffset = useRef({ x: 0, y: 0 });
 
   const [loading, setLoading] = useState(false);
 
-  /* -----------------------------
-     LOAD BACKGROUND ONCE
-  ----------------------------- */
+  /* ---------------- BACKGROUND LOAD ---------------- */
   useEffect(() => {
     const img = new Image();
     img.src = "/background.png";
     img.onload = () => {
       setBgImage(img);
       const canvas = canvasRef.current!;
-      canvas.width = img.width;   // echte Export-Auflösung
+      canvas.width = img.width;
       canvas.height = img.height;
       draw(img, null, scale, pos);
     };
   }, []);
 
-  /* -----------------------------
-     REDRAW CANVAS
-  ----------------------------- */
+  /* ---------------- REDRAW ---------------- */
   useEffect(() => {
     draw(bgImage, fgImage, scale, pos);
   }, [bgImage, fgImage, scale, pos]);
@@ -49,31 +46,20 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
     ctx.drawImage(bg, 0, 0);
 
     if (!fg) return;
 
-    // Zielhöhe = 40 % der Background-Höhe
     const targetHeight = bg.height * 0.4 * s;
     const targetWidth = (fg.width / fg.height) * targetHeight;
 
-    // Clamping (bleibt immer im Bild)
-    const x = Math.min(
-      Math.max(p.x, 0),
-      bg.width - targetWidth
-    );
-    const y = Math.min(
-      Math.max(p.y, 0),
-      bg.height - targetHeight
-    );
+    const x = Math.min(Math.max(p.x, 0), bg.width - targetWidth);
+    const y = Math.min(Math.max(p.y, 0), bg.height - targetHeight);
 
     ctx.drawImage(fg, x, y, targetWidth, targetHeight);
   };
 
-  /* -----------------------------
-     UPLOAD + BACKGROUND REMOVAL
-  ----------------------------- */
+  /* ---------------- UPLOAD ---------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
 
@@ -84,12 +70,6 @@ export default function Page() {
       method: "POST",
       body: formData,
     });
-
-    if (!res.ok) {
-      alert("Background removal failed");
-      setLoading(false);
-      return;
-    }
 
     const blob = await res.blob();
     const img = new Image();
@@ -106,34 +86,75 @@ export default function Page() {
     };
   };
 
-  /* -----------------------------
-     DRAG HANDLING (MOUSE)
-  ----------------------------- */
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (!fgImage) return;
-    setDragging(true);
-    setDragOffset({
-      x: e.nativeEvent.offsetX - pos.x,
-      y: e.nativeEvent.offsetY - pos.y,
-    });
+  /* ---------------- DRAG LOGIC ---------------- */
+  const isInsideImage = (x: number, y: number) => {
+    if (!bgImage || !fgImage) return false;
+
+    const h = bgImage.height * 0.4 * scale;
+    const w = (fgImage.width / fgImage.height) * h;
+
+    return (
+      x >= pos.x &&
+      x <= pos.x + w &&
+      y >= pos.y &&
+      y <= pos.y + h
+    );
   };
 
-  const onMouseMove = (e: React.MouseEvent) => {
+  const startDrag = (x: number, y: number) => {
+    if (!isInsideImage(x, y)) return;
+    setDragging(true);
+    dragOffset.current = { x: x - pos.x, y: y - pos.y };
+  };
+
+  const moveDrag = (x: number, y: number) => {
     if (!dragging) return;
     setPos({
-      x: e.nativeEvent.offsetX - dragOffset.x,
-      y: e.nativeEvent.offsetY - dragOffset.y,
+      x: x - dragOffset.current.x,
+      y: y - dragOffset.current.y,
     });
   };
 
-  const onMouseUp = () => setDragging(false);
+  const stopDrag = () => setDragging(false);
 
-  /* -----------------------------
-     DOWNLOAD
-  ----------------------------- */
+  /* ---------------- MOUSE EVENTS ---------------- */
+  const onMouseDown = (e: React.MouseEvent) =>
+    startDrag(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+  const onMouseMove = (e: React.MouseEvent) =>
+    moveDrag(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+  const onMouseUp = stopDrag;
+
+  /* ---------------- TOUCH EVENTS ---------------- */
+  const getTouchPos = (e: React.TouchEvent) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const touch = e.touches[0];
+    return {
+      x:
+        ((touch.clientX - rect.left) / rect.width) *
+        canvasRef.current!.width,
+      y:
+        ((touch.clientY - rect.top) / rect.height) *
+        canvasRef.current!.height,
+    };
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const p = getTouchPos(e);
+    startDrag(p.x, p.y);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const p = getTouchPos(e);
+    moveDrag(p.x, p.y);
+  };
+
+  const onTouchEnd = stopDrag;
+
+  /* ---------------- DOWNLOAD ---------------- */
   const downloadImage = () => {
-    if (!canvasRef.current) return;
-    canvasRef.current.toBlob((blob) => {
+    canvasRef.current!.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -144,15 +165,14 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center px-6 py-12">
-      {/* Header */}
       <h1 className="text-3xl md:text-4xl font-semibold mb-2 text-center">
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
       <p className="text-gray-400 mb-8 text-center max-w-xl">
-        Upload your photo, position it freely, and download your final visual.
+        Upload your photo, drag it into position, resize it and download your
+        final visual.
       </p>
 
-      {/* Upload */}
       <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
         {loading ? "Processing..." : "Upload photo"}
         <input
@@ -165,21 +185,23 @@ export default function Page() {
         />
       </label>
 
-      {/* Canvas (RESPONSIVE!) */}
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
-          className="w-full h-auto rounded-xl border cursor-move"
+          className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing touch-none"
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
+          onMouseLeave={stopDrag}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         />
       </div>
 
-      {/* Controls */}
       {fgImage && (
         <>
-          <div className="w-full max-w-xs mb-6">
+          <div className="w-full max-w-xs mb-6 border border-white rounded-xl px-4 py-3">
             <input
               type="range"
               min="0.6"
@@ -191,7 +213,7 @@ export default function Page() {
               }
               className="w-full"
             />
-            <p className="text-center text-sm text-gray-400 mt-2">
+            <p className="text-center text-sm text-gray-300 mt-2">
               Resize photo
             </p>
           </div>
@@ -207,5 +229,6 @@ export default function Page() {
     </main>
   );
 }
+
 
 
