@@ -42,18 +42,24 @@ export default function Page() {
   };
 
   /* -----------------------------
-     LOAD BACKGROUND
+     LOAD BACKGROUND (WAIT FOR FONT)
   ----------------------------- */
   useEffect(() => {
-    const img = new Image();
-    img.src = "/background.png";
-    img.onload = () => {
-      setBgImage(img);
-      const canvas = canvasRef.current!;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      draw(img, null, scale, pos, name);
+    const load = async () => {
+      await document.fonts.load('10px "HelloMissDi"');
+
+      const img = new Image();
+      img.src = "/background.png";
+      img.onload = () => {
+        setBgImage(img);
+        const canvas = canvasRef.current!;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        draw(img, null, scale, pos, name);
+      };
     };
+
+    load();
   }, []);
 
   /* -----------------------------
@@ -173,7 +179,7 @@ export default function Page() {
   };
 
   /* -----------------------------
-     UPLOAD (remove.bg fallback)
+     UPLOAD
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
@@ -208,7 +214,7 @@ export default function Page() {
   };
 
   /* -----------------------------
-     DRAG HELPERS
+     DRAG
   ----------------------------- */
   const startDrag = (x: number, y: number) => {
     setDragging(true);
@@ -223,7 +229,7 @@ export default function Page() {
   const stopDrag = () => setDragging(false);
 
   /* -----------------------------
-     SHARE / DOWNLOAD
+     SHARE
   ----------------------------- */
   const shareImage = async () => {
     const canvas = canvasRef.current!;
@@ -234,18 +240,31 @@ export default function Page() {
 
     const file = new File([blob], "web3-talents.png", { type: "image/png" });
 
-    if (typeof navigator !== "undefined" && "share" in navigator) {
+    if ("share" in navigator) {
       await (navigator as any).share({
         files: [file],
         title: "Web3 Talents",
         text: "I’m officially part of the Web3 Talents Program 🚀",
       });
-    } else {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "web3-talents.png";
-      a.click();
     }
+  };
+
+  /* -----------------------------
+     DOWNLOAD
+  ----------------------------- */
+  const downloadImage = async () => {
+    const canvas = canvasRef.current!;
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/png")
+    );
+    if (!blob) return;
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "web3-talents.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -307,7 +326,6 @@ export default function Page() {
         />
       </div>
 
-      {/* ✅ SCALE SLIDER (ONLY ADDITION) */}
       {fgImage && (
         <div className="w-full max-w-xs mb-6 border border-white rounded-xl px-4 py-3">
           <input
@@ -334,7 +352,7 @@ export default function Page() {
             Share
           </button>
           <button
-            onClick={shareImage}
+            onClick={downloadImage}
             className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
           >
             Download
