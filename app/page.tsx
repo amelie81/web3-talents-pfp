@@ -22,7 +22,6 @@ export default function Page() {
   const getCanvasPos = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-
     return {
       x: ((clientX - rect.left) / rect.width) * canvas.width,
       y: ((clientY - rect.top) / rect.height) * canvas.height,
@@ -63,18 +62,49 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    /* ---- Background ---- */
     ctx.drawImage(bg, 0, 0);
 
-    if (!fg) return;
+    /* ---- Circle geometry ---- */
+    const circleDiameter = bg.height / 3;
+    const radius = circleDiameter / 2;
+    const cx = bg.width / 2;
+    const cy = bg.height * 0.7; // untere Hälfte, mittig
 
-    const baseHeight = bg.height * 0.4;
-    const height = baseHeight * s;
-    const width = (fg.width / fg.height) * height;
+    /* ---- White fill ---- */
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
 
-    const x = Math.min(Math.max(p.x, 0), bg.width - width);
-    const y = Math.min(Math.max(p.y, 0), bg.height - height);
+    if (fg) {
+      /* ---- Masked image ---- */
+      const baseHeight = bg.height * 0.4;
+      const height = baseHeight * s;
+      const width = (fg.width / fg.height) * height;
 
-    ctx.drawImage(fg, x, y, width, height);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.drawImage(
+        fg,
+        p.x,
+        p.y,
+        width,
+        height
+      );
+
+      ctx.restore();
+    }
+
+    /* ---- Blue stroke ---- */
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#2563eb"; // Tailwind blue-600
+    ctx.stroke();
   };
 
   /* -----------------------------
@@ -91,12 +121,6 @@ export default function Page() {
       body: formData,
     });
 
-    if (!res.ok) {
-      alert("Background removal failed");
-      setLoading(false);
-      return;
-    }
-
     const blob = await res.blob();
     const img = new Image();
     img.src = URL.createObjectURL(blob);
@@ -105,8 +129,8 @@ export default function Page() {
       setFgImage(img);
       setScale(1);
       setPos({
-        x: bgImage!.width * 0.55,
-        y: bgImage!.height * 0.55,
+        x: bgImage!.width / 2 - img.width * 0.15,
+        y: bgImage!.height * 0.7 - img.height * 0.15,
       });
       setLoading(false);
     };
@@ -115,22 +139,7 @@ export default function Page() {
   /* -----------------------------
      DRAG LOGIC
   ----------------------------- */
-  const isInsideImage = (x: number, y: number) => {
-    if (!bgImage || !fgImage) return false;
-
-    const h = bgImage.height * 0.4 * scale;
-    const w = (fgImage.width / fgImage.height) * h;
-
-    return (
-      x >= pos.x &&
-      x <= pos.x + w &&
-      y >= pos.y &&
-      y <= pos.y + h
-    );
-  };
-
   const startDrag = (x: number, y: number) => {
-    if (!isInsideImage(x, y)) return;
     setDragging(true);
     dragOffset.current = { x: x - pos.x, y: y - pos.y };
   };
@@ -159,8 +168,6 @@ export default function Page() {
     moveDrag(p.x, p.y);
   };
 
-  const onMouseUp = stopDrag;
-
   /* -----------------------------
      TOUCH EVENTS
   ----------------------------- */
@@ -178,14 +185,11 @@ export default function Page() {
     moveDrag(p.x, p.y);
   };
 
-  const onTouchEnd = stopDrag;
-
   /* -----------------------------
      DOWNLOAD
   ----------------------------- */
   const downloadImage = () => {
-    if (!canvasRef.current) return;
-    canvasRef.current.toBlob((blob) => {
+    canvasRef.current!.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -201,8 +205,8 @@ export default function Page() {
       </h1>
 
       <p className="text-gray-400 mb-8 text-center max-w-xl">
-        Upload your photo, drag it into position, resize it and download your
-        final visual.
+        Upload your photo, position it inside the circle and download your final
+        visual.
       </p>
 
       <label className="cursor-pointer bg-white text-black px-6 py-3 rounded-xl font-medium mb-6">
@@ -217,18 +221,17 @@ export default function Page() {
         />
       </label>
 
-      {/* RESPONSIVE CANVAS */}
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
           className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing touch-none"
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
+          onMouseUp={stopDrag}
           onMouseLeave={stopDrag}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+          onTouchEnd={stopDrag}
         />
       </div>
 
@@ -238,10 +241,12 @@ export default function Page() {
             <input
               type="range"
               min="0.6"
-              max="1.4"
+              max="1.6"
               step="0.01"
               value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
+              onChange={(e) =>
+                setScale(Number(e.target.value))
+              }
               className="w-full"
             />
             <p className="text-center text-sm text-gray-300 mt-2">
@@ -260,4 +265,5 @@ export default function Page() {
     </main>
   );
 }
+
 
