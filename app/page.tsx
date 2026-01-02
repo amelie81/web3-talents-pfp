@@ -34,7 +34,7 @@ export default function Page() {
   ----------------------------- */
   useEffect(() => {
     const img = new Image();
-    img.src = "/background.png";
+    img.src = "/background1.png";
     img.onload = () => {
       setBgImage(img);
       const canvas = canvasRef.current!;
