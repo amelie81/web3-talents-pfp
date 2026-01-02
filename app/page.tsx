@@ -62,24 +62,23 @@ export default function Page() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* ---- Background ---- */
+    /* Background */
     ctx.drawImage(bg, 0, 0);
 
-    /* ---- Circle geometry ---- */
-    const circleDiameter = bg.height / 3;
-    const radius = circleDiameter / 2;
+    /* Circle geometry */
+    const diameter = bg.height / 3;
+    const radius = diameter / 2;
     const cx = bg.width / 2;
-    const cy = bg.height * 0.7; // untere Hälfte, mittig
+    const cy = bg.height * 0.6; // weiter nach oben
 
-    /* ---- White fill ---- */
+    /* White fill */
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
 
     if (fg) {
-      /* ---- Masked image ---- */
-      const baseHeight = bg.height * 0.4;
+      const baseHeight = diameter * 0.9;
       const height = baseHeight * s;
       const width = (fg.width / fg.height) * height;
 
@@ -88,22 +87,15 @@ export default function Page() {
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.clip();
 
-      ctx.drawImage(
-        fg,
-        p.x,
-        p.y,
-        width,
-        height
-      );
-
+      ctx.drawImage(fg, p.x, p.y, width, height);
       ctx.restore();
     }
 
-    /* ---- Blue stroke ---- */
+    /* Thicker blue border */
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "#2563eb"; // Tailwind blue-600
+    ctx.lineWidth = 16; // deutlich dicker
+    ctx.strokeStyle = "#2563eb"; // blue
     ctx.stroke();
   };
 
@@ -126,12 +118,19 @@ export default function Page() {
     img.src = URL.createObjectURL(blob);
 
     img.onload = () => {
+      const diameter = bgImage!.height / 3;
+      const baseHeight = diameter * 0.9;
+      const initialScale = baseHeight / img.height;
+
       setFgImage(img);
       setScale(1);
+
+      // AUTOMATISCH IM KREIS ZENTRIERT
       setPos({
-        x: bgImage!.width / 2 - img.width * 0.15,
-        y: bgImage!.height * 0.7 - img.height * 0.15,
+        x: bgImage!.width / 2 - (img.width * initialScale) / 2,
+        y: bgImage!.height * 0.6 - (img.height * initialScale) / 2,
       });
+
       setLoading(false);
     };
   };
@@ -205,7 +204,7 @@ export default function Page() {
       </h1>
 
       <p className="text-gray-400 mb-8 text-center max-w-xl">
-        Upload your photo, position it inside the circle and download your final
+        Upload your photo, adjust it inside the circle and download your final
         visual.
       </p>
 
@@ -265,5 +264,3 @@ export default function Page() {
     </main>
   );
 }
-
-
