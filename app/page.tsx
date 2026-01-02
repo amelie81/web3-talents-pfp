@@ -2,6 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/* -----------------------------
+   CUSTOM FONT (GLOBAL)
+----------------------------- */
+const fontStyle = `
+@font-face {
+  font-family: "HelloMissDi";
+  src: url("/HelloMissDi.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+`;
+
 export default function Page() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -66,12 +78,11 @@ export default function Page() {
     let line = "";
     let offsetY = 0;
 
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + " ";
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && n > 0) {
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + " ";
+      if (ctx.measureText(testLine).width > maxWidth && i > 0) {
         ctx.fillText(line, x, y + offsetY);
-        line = words[n] + " ";
+        line = words[i] + " ";
         offsetY += lineHeight;
       } else {
         line = testLine;
@@ -80,6 +91,9 @@ export default function Page() {
     ctx.fillText(line, x, y + offsetY);
   };
 
+  /* -----------------------------
+     DRAW
+  ----------------------------- */
   const draw = (
     bg: HTMLImageElement | null,
     fg: HTMLImageElement | null,
@@ -97,13 +111,12 @@ export default function Page() {
     ctx.drawImage(bg, 0, 0);
 
     /* ---- TEXT ---- */
-    if (n.trim().length > 0) {
-      const safeMargin = canvas.width * 0.08;
-      const maxTextWidth = canvas.width - safeMargin * 2;
-      const fontSize = canvas.width * 0.042;
+    if (n.trim()) {
+      const margin = canvas.width * 0.08;
+      const fontSize = canvas.width * 0.055; // größer
       const lineHeight = fontSize * 1.25;
 
-      ctx.font = `600 ${fontSize}px Arial`;
+      ctx.font = `${fontSize}px "HelloMissDi"`;
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
 
@@ -111,8 +124,8 @@ export default function Page() {
         ctx,
         `${n} is now officially part of the Web3 Talents Program!`,
         canvas.width / 2,
-        canvas.height * 0.18, // etwas tiefer
-        maxTextWidth,
+        canvas.height * 0.24, // weiter unten
+        canvas.width - margin * 2,
         lineHeight
       );
     }
@@ -151,16 +164,16 @@ export default function Page() {
   };
 
   /* -----------------------------
-     UPLOAD (WITH FALLBACK)
+     UPLOAD (FALLBACK)
   ----------------------------- */
   const handleUpload = async (file: File) => {
     setLoading(true);
     let imageUrl: string;
 
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch("/api/remove-bg", { method: "POST", body: formData });
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/remove-bg", { method: "POST", body: fd });
       imageUrl = res.ok
         ? URL.createObjectURL(await res.blob())
         : URL.createObjectURL(file);
@@ -170,7 +183,6 @@ export default function Page() {
 
     const img = new Image();
     img.src = imageUrl;
-
     img.onload = () => {
       const diameter = bgImage!.height / 3;
       const baseHeight = diameter * 0.9;
@@ -216,14 +228,14 @@ export default function Page() {
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault();
     const t = e.touches[0];
     const p = getCanvasPos(t.clientX, t.clientY);
     startDrag(p.x, p.y);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    e.preventDefault();
+    if (!dragging) return;
+    e.preventDefault(); // Scroll nur während Drag blocken
     const t = e.touches[0];
     const p = getCanvasPos(t.clientX, t.clientY);
     moveDrag(p.x, p.y);
@@ -244,6 +256,8 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center px-6 py-12">
+      <style>{fontStyle}</style>
+
       <h1 className="text-3xl md:text-4xl font-semibold mb-2 text-center">
         Congratulations — you made it into Web3 Talents 🎉
       </h1>
@@ -277,7 +291,8 @@ export default function Page() {
       <div className="w-full max-w-[420px] md:max-w-[520px] mb-6">
         <canvas
           ref={canvasRef}
-          className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing touch-none"
+          className="w-full h-auto rounded-xl border border-white cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "pan-y" }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={stopDrag}
