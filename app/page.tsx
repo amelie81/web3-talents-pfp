@@ -28,16 +28,6 @@ export default function Page() {
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const [loading, setLoading] = useState(false);
-  const [fontReady, setFontReady] = useState(false);
-
-  /* -----------------------------
-     LOAD FONT FIRST
-  ----------------------------- */
-  useEffect(() => {
-    document.fonts.load('20px "HelloMissDi"').then(() => {
-      setFontReady(true);
-    });
-  }, []);
 
   /* -----------------------------
      CANVAS COORD HELPER
@@ -62,6 +52,7 @@ export default function Page() {
       const canvas = canvasRef.current!;
       canvas.width = img.width;
       canvas.height = img.height;
+      draw(img, null, scale, pos, name);
     };
   }, []);
 
@@ -69,9 +60,8 @@ export default function Page() {
      REDRAW
   ----------------------------- */
   useEffect(() => {
-    if (!fontReady) return;
     draw(bgImage, fgImage, scale, pos, name);
-  }, [bgImage, fgImage, scale, pos, name, fontReady]);
+  }, [bgImage, fgImage, scale, pos, name]);
 
   /* -----------------------------
      TEXT WRAP
@@ -82,10 +72,8 @@ export default function Page() {
     x: number,
     y: number,
     maxWidth: number,
-    lineHeight: number,
-    font: string
+    lineHeight: number
   ) => {
-    ctx.font = font;
     const words = text.split(" ");
     let line = "";
     let offsetY = 0;
@@ -133,56 +121,27 @@ export default function Page() {
       canvas.height - frame
     );
 
-    // ----- TEXT -----
+    // Text
     if (n.trim()) {
       const margin = canvas.width * 0.08;
       const fontSize = canvas.width * 0.055;
       const lineHeight = fontSize * 1.25;
+
+      ctx.font = `${fontSize}px "HelloMissDi"`;
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
 
-      // Line 1 (custom font)
       drawWrappedText(
         ctx,
-        `${n} is now officially part of the`,
+        `${n} is now officially part of the Web3 Talents Program!`,
         canvas.width / 2,
-        canvas.height * 0.25,
+        canvas.height * 0.26,
         canvas.width - margin * 2,
-        lineHeight,
-        `${fontSize}px "HelloMissDi"`
+        lineHeight
       );
-
-      // Line 2: Web3 Talents (nur die 3 System-Font)
-      const baseY = canvas.height * 0.25 + lineHeight * 1.4;
-
-      ctx.font = `${fontSize}px "HelloMissDi"`;
-      const webText = "Web";
-      const webWidth = ctx.measureText(webText).width;
-
-      ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`;
-      const threeText = "3";
-      const threeWidth = ctx.measureText(threeText).width;
-
-      ctx.font = `${fontSize}px "HelloMissDi"`;
-      const talentsText = " Talents Program!";
-      const talentsWidth = ctx.measureText(talentsText).width;
-
-      const totalWidth = webWidth + threeWidth + talentsWidth;
-      let startX = canvas.width / 2 - totalWidth / 2;
-
-      ctx.font = `${fontSize}px "HelloMissDi"`;
-      ctx.fillText(webText, startX + webWidth / 2, baseY);
-      startX += webWidth;
-
-      ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont`;
-      ctx.fillText(threeText, startX + threeWidth / 2, baseY);
-      startX += threeWidth;
-
-      ctx.font = `${fontSize}px "HelloMissDi"`;
-      ctx.fillText(talentsText, startX + talentsWidth / 2, baseY);
     }
 
-    // ----- CIRCLE -----
+    // Circle
     const diameter = bg.height / 3;
     const radius = diameter / 2;
     const cx = bg.width / 2;
@@ -263,6 +222,32 @@ export default function Page() {
 
   const stopDrag = () => setDragging(false);
 
+  /* -----------------------------
+     SHARE / DOWNLOAD
+  ----------------------------- */
+  const shareImage = async () => {
+    const canvas = canvasRef.current!;
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/png")
+    );
+    if (!blob) return;
+
+    const file = new File([blob], "web3-talents.png", { type: "image/png" });
+
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      await (navigator as any).share({
+        files: [file],
+        title: "Web3 Talents",
+        text: "I’m officially part of the Web3 Talents Program 🚀",
+      });
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "web3-talents.png";
+      a.click();
+    }
+  };
+
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center px-6 py-12">
       <style>{fontStyle}</style>
@@ -322,6 +307,7 @@ export default function Page() {
         />
       </div>
 
+      {/* ✅ SCALE SLIDER (ONLY ADDITION) */}
       {fgImage && (
         <div className="w-full max-w-xs mb-6 border border-white rounded-xl px-4 py-3">
           <input
@@ -336,6 +322,23 @@ export default function Page() {
           <p className="text-center text-sm text-gray-300 mt-2">
             Resize photo
           </p>
+        </div>
+      )}
+
+      {fgImage && (
+        <div className="flex gap-4">
+          <button
+            onClick={shareImage}
+            className="bg-blue-500 hover:bg-blue-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Share
+          </button>
+          <button
+            onClick={shareImage}
+            className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl font-medium"
+          >
+            Download
+          </button>
         </div>
       )}
     </main>
